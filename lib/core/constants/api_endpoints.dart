@@ -9,9 +9,10 @@ class ApiEndpoints {
       return 'http://localhost:5000/api/v1';
     }
     return Platform.isAndroid
-        ? 'http://10.0.2.2:5000/api/v1'
+        ? 'http://192.168.0.182:5000/api/v1'
         : 'http://127.0.0.1:5000/api/v1';
   }
+
   static const String register = '/auth/register';
   static const String login = '/auth/login';
   static const String logout = '/auth/logout';
@@ -51,9 +52,45 @@ class ApiEndpoints {
   static const String notificationsList = '/notifications';
   static const String notificationsReadAll = '/notifications/read-all';
   static const String notificationsClearAll = '/notifications/clear-all';
+  // ── Dynamic Cycle ──
+  static const String cycleDashboard = '/cycles/dynamic/dashboard';
+  static const String cycleAlerts = '/cycles/dynamic/alerts';
+  static const String cycleFertility = '/cycles/dynamic/fertility';
+  static const String cyclePremiumCalendar = '/cycles/dynamic/calendar/premium';
+  static const String cycleConfig = '/cycles/dynamic/config';
+
   static const String reportsOverview = '/reports/overview';
   static const String reportsCycleAnalysis = '/reports/cycle-analysis';
   static const String reportsSymptomAnalysis = '/reports/symptom-analysis';
   static const String reportsExport = '/reports/export';
   static const String reportsMonthlySummary = '/reports/monthly-summary';
+
+  // ── Water Tracking ──
+  static const String waterConfig = '/water/config';
+  static const String waterLog = '/water/log';
+  static const String waterLogLast = '/water/log/last';
+  static const String waterToday = '/water/today';
+  static const String waterWeekly = '/water/weekly';
+  static const String waterMonthly = '/water/monthly';
+  static const String waterStreak = '/water/streak';
+
+  // ── Mood Tracking ──
+  static const String moods = '/moods';
+  static const String moodToday = '/moods/today';
+  static const String moodWeekly = '/moods/weekly';
+  static const String moodMonthly = '/moods/monthly';
+  static const String moodCycleCorrelation = '/moods/cycle-correlation';
+
+  // ── Weight & BMI ──
+  static const String weight = '/weight';
+  static const String weightHistory = '/weight/history';
+  static const String weightTrend = '/weight/trend';
+  static const String weightBmi = '/weight/bmi';
+
+  // ── Analytics ──
+  static const String analyticsHealthScore = '/analytics/health-score';
+  static const String analyticsDashboard = '/analytics/dashboard';
+
+  // ── Smart Insights ──
+  static const String insights = '/insights';
 }

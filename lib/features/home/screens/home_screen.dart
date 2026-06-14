@@ -9,11 +9,15 @@ import '../../../router/app_router.dart';
 import '../../../shared/widgets/cycle_sync_bottom_nav.dart';
 import '../widgets/cycle_status_card.dart';
 import '../widgets/quick_log_bar.dart';
-import '../../../features/calendar/screens/calendar_screen.dart';
+import '../../../features/calendar/screens/premium_calendar_screen.dart';
 import '../../../features/medicine/screens/medicine_screen.dart';
 import '../../../features/settings/screens/settings_screen.dart';
 import '../../../features/notifications/screens/notifications_screen.dart';
 import '../../../shared/widgets/cycle_sync_button.dart';
+import '../../../features/water/screens/water_tracking_screen.dart';
+import '../../../providers/water_provider.dart';
+import '../../../providers/mood_provider.dart';
+import '../../../providers/medicine_provider.dart';
 
 // ─────────────────────────────────────────────
 //  ROOT SHELL — unchanged navigation wrapper
@@ -30,7 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final List<Widget> _screens = [
     const _HomeTab(),
-    const CalendarScreen(),
+    const PremiumCalendarScreen(),
     const MedicineScreen(),
     const _ProfileTab(),
   ];
@@ -75,32 +79,112 @@ class _HomeTab extends StatefulWidget {
 }
 
 class _HomeTabState extends State<_HomeTab> {
-  // Water tracker local state
-  int _waterGlasses = 4;
-  final int _waterGoal = 8;
-
-  // Mood selection
   int? _selectedMoodIndex;
-
-  // Medicine taken state
-  final List<bool?> _medicineTaken = [true, false, null];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<CycleProvider>().loadPrediction();
-      context.read<CycleProvider>().loadStatistics();
+      context.read<CycleProvider>().loadDashboard();
+      context.read<WaterProvider>().loadAll();
+      context.read<MoodProvider>().loadAll();
+      context.read<MedicineProvider>().loadTodaysMedicines();
     });
+  }
+
+  void _showSetupPrompt(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('Setup Required', style: TextStyle(fontFamily: 'Poppins', fontWeight: FontWeight.bold, color: Color(0xFF2D2D3A))),
+        content: const Text('Please calculate and confirm your BMI first to get an accurate, personalized hydration target.', style: TextStyle(fontFamily: 'Poppins', color: Color(0xFF6B6B7B), fontSize: 14)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(fontFamily: 'Poppins', color: Color(0xFF9E9EA8))),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pushNamed(context, AppRouter.bmiCalculator);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF8B7EC8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Setup Now', style: TextStyle(fontFamily: 'Poppins', color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTargetAchievedDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5EE),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(color: const Color(0xFF6BAF8A).withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 8)),
+                  ],
+                ),
+                child: const Icon(Icons.verified_rounded, color: Color(0xFF6BAF8A), size: 48),
+              ),
+              const SizedBox(height: 24),
+              const Text('Target Achieved!', style: TextStyle(fontFamily: 'Poppins', fontSize: 22, fontWeight: FontWeight.w800, color: Color(0xFF2D2D3A))),
+              const SizedBox(height: 8),
+              const Text('Amazing job! You have reached your hydration goal for today. Stay hydrated, stay healthy! 💧✨', textAlign: TextAlign.center, style: TextStyle(fontFamily: 'Poppins', fontSize: 13, color: Color(0xFF6B6B7B), height: 1.5)),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6BAF8A),
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: const Text('Awesome!', style: TextStyle(fontFamily: 'Poppins', fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final cycleProvider = context.watch<CycleProvider>();
     final authProvider = context.watch<AuthProvider>();
+    final waterProvider = context.watch<WaterProvider>();
+    final moodProvider = context.watch<MoodProvider>();
+    final medProvider = context.watch<MedicineProvider>();
+
     final userName = authProvider.user?['name'] ?? 'Sarah';
     final avatarUrl =
         'https://api.dicebear.com/7.x/lorelei/png?seed=${Uri.encodeComponent(userName)}';
+    final dashboard = cycleProvider.dashboard;
+    final phaseInsights = dashboard?['phaseInsights'] as Map<String, dynamic>?;
+    final alerts = dashboard?['alerts'] as List<dynamic>? ?? [];
+    final activeAlert = alerts.isNotEmpty
+        ? alerts[0] as Map<String, dynamic>
+        : null;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.dark,
@@ -118,10 +202,20 @@ class _HomeTabState extends State<_HomeTab> {
                 onNotificationTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (_) => const NotificationsScreen()),
+                    builder: (_) => const NotificationsScreen(),
+                  ),
                 ),
               ),
             ),
+
+            // ── 1.5 ALERT BANNER ───────────────────────────
+            if (activeAlert != null)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+                  child: _AlertBanner(alert: activeAlert),
+                ),
+              ),
 
             // ── 2. CYCLE ORBIT SECTION ────────────────────
             SliverToBoxAdapter(
@@ -130,6 +224,7 @@ class _HomeTabState extends State<_HomeTab> {
                 child: _CycleOrbitSection(
                   prediction: cycleProvider.prediction,
                   statistics: cycleProvider.statistics,
+                  phaseInsights: phaseInsights,
                 ),
               ),
             ),
@@ -139,9 +234,12 @@ class _HomeTabState extends State<_HomeTab> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
                 child: _DailyCheckInStrip(
-                  selectedIndex: _selectedMoodIndex,
-                  onMoodSelected: (i) =>
-                      setState(() => _selectedMoodIndex = i),
+                  selectedIndex: moodProvider.todayMoodScore != null ? moodProvider.todayMoodScore! - 1 : _selectedMoodIndex,
+                  onMoodSelected: (i) {
+                    setState(() => _selectedMoodIndex = i);
+                    final mood = _DailyCheckInStrip._moods[i]['label']!;
+                    moodProvider.saveMood(mood, i + 1);
+                  },
                 ),
               ),
             ),
@@ -159,14 +257,24 @@ class _HomeTabState extends State<_HomeTab> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
                 child: _WellnessSnapshotRow(
-                  waterGlasses: _waterGlasses,
-                  waterGoal: _waterGoal,
+                  waterGlasses: waterProvider.glasses,
+                  waterGoal: (waterProvider.goalMl / waterProvider.glassSize).ceil(),
                   onAddWater: () {
-                    if (_waterGlasses < _waterGoal) {
-                      setState(() => _waterGlasses++);
-                      HapticFeedback.lightImpact();
+                    HapticFeedback.lightImpact();
+                    if (!waterProvider.isConfigured) {
+                      _showSetupPrompt(context);
+                      return;
                     }
+                    
+                    final goal = (waterProvider.goalMl / waterProvider.glassSize).ceil();
+                    if (waterProvider.glasses >= goal) {
+                      _showTargetAchievedDialog(context);
+                      return;
+                    }
+                    
+                    waterProvider.logWater();
                   },
+                  phaseInsights: phaseInsights,
                 ),
               ),
             ),
@@ -176,14 +284,7 @@ class _HomeTabState extends State<_HomeTab> {
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
                 child: _MedicineTimeline(
-                  taken: _medicineTaken,
-                  onToggle: (i) {
-                    setState(() {
-                      _medicineTaken[i] =
-                          _medicineTaken[i] == true ? false : true;
-                    });
-                    HapticFeedback.mediumImpact();
-                  },
+                  medicines: medProvider.todaysMedicines,
                 ),
               ),
             ),
@@ -192,7 +293,7 @@ class _HomeTabState extends State<_HomeTab> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 0),
-                child: const _WellnessStoryCard(),
+                child: _WellnessStoryCard(phaseInsights: phaseInsights),
               ),
             ),
 
@@ -241,14 +342,18 @@ class _ImmersiveHeader extends StatelessWidget {
   }
 
   String _getPhaseLabel() {
-    final prediction = cycleProvider.prediction;
-    if (prediction == null) return 'Ovulation Phase';
-    return prediction['phase'] ?? 'Ovulation Phase';
+    final dashboard = cycleProvider.dashboard;
+    final phaseInsights = dashboard?['phaseInsights'] as Map<String, dynamic>?;
+    final phase = phaseInsights?['phase'] as String? ?? 'not_setup';
+    if (phase == 'not_setup') return 'Not Setup Yet';
+    return '${phase[0].toUpperCase()}${phase.substring(1)} Phase';
   }
 
   String _getPhaseMoodCopy() {
     final phase = _getPhaseLabel().toLowerCase();
-    if (phase.contains('ovulat')) {
+    if (phase.contains('not setup')) {
+      return 'Please log your first period to unlock personalized AI predictions 🌸';
+    } else if (phase.contains('ovulat')) {
       return 'Your energy peaks today perfect\nfor big decisions & connection 💫';
     } else if (phase.contains('menstrual') || phase.contains('period')) {
       return 'Rest is your superpower today —\nhonour your body\'s rhythm 🌿';
@@ -261,6 +366,7 @@ class _ImmersiveHeader extends StatelessWidget {
 
   Color _getPhaseColor() {
     final phase = _getPhaseLabel().toLowerCase();
+    if (phase.contains('not setup')) return const Color(0xFF9E9EA8);
     if (phase.contains('ovulat')) return const Color(0xFFD4A843);
     if (phase.contains('menstrual') || phase.contains('period'))
       return const Color(0xFFC96B6B);
@@ -273,11 +379,28 @@ class _ImmersiveHeader extends StatelessWidget {
     final size = MediaQuery.of(context).size;
     final phaseColor = _getPhaseColor();
     final now = DateTime.now();
-    final dayLabel =
-        ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][now.weekday - 1];
+    final dayLabel = [
+      'Mon',
+      'Tue',
+      'Wed',
+      'Thu',
+      'Fri',
+      'Sat',
+      'Sun',
+    ][now.weekday - 1];
     final months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     final dateLabel = '$dayLabel, ${now.day} ${months[now.month - 1]}';
 
@@ -285,11 +408,7 @@ class _ImmersiveHeader extends StatelessWidget {
       width: double.infinity,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            Color(0xFFFFF0E8),
-            Color(0xFFFDE8F0),
-            Color(0xFFEDE8FA),
-          ],
+          colors: [Color(0xFFFFF0E8), Color(0xFFFDE8F0), Color(0xFFEDE8FA)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -440,7 +559,10 @@ class _ImmersiveHeader extends StatelessWidget {
                                   decoration: BoxDecoration(
                                     color: const Color(0xFFE8647A),
                                     shape: BoxShape.circle,
-                                    border: Border.all(color: Colors.white, width: 1.5),
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 1.5,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -450,9 +572,9 @@ class _ImmersiveHeader extends StatelessWidget {
                       ),
                     ],
                   ),
-                  
+
                   const SizedBox(height: 32),
-                  
+
                   // --- MIDDLE SECTION: Content + Image ---
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -466,7 +588,10 @@ class _ImmersiveHeader extends StatelessWidget {
                           children: [
                             // Phase chip
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 8,
+                              ),
                               decoration: BoxDecoration(
                                 color: phaseColor.withOpacity(0.12),
                                 borderRadius: BorderRadius.circular(30),
@@ -502,9 +627,9 @@ class _ImmersiveHeader extends StatelessWidget {
                                 ],
                               ),
                             ),
-                            
+
                             const SizedBox(height: 16),
-                            
+
                             // Mood copy
                             Text(
                               _getPhaseMoodCopy().replaceAll('\n', ' '),
@@ -519,9 +644,9 @@ class _ImmersiveHeader extends StatelessWidget {
                           ],
                         ),
                       ),
-                      
+
                       const SizedBox(width: 16),
-                      
+
                       // Illustration
                       Expanded(
                         flex: 2,
@@ -532,7 +657,8 @@ class _ImmersiveHeader extends StatelessWidget {
                             'https://res.cloudinary.com/dol0wdten/image/upload/v1781188781/girl_cvxm2g.png',
                             fit: BoxFit.contain,
                             alignment: Alignment.bottomRight,
-                            errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                            errorBuilder: (_, __, ___) =>
+                                const SizedBox.shrink(),
                           ),
                         ),
                       ),
@@ -554,16 +680,23 @@ class _ImmersiveHeader extends StatelessWidget {
 class _CycleOrbitSection extends StatelessWidget {
   final Map<String, dynamic>? prediction;
   final Map<String, dynamic>? statistics;
+  final Map<String, dynamic>? phaseInsights;
 
-  const _CycleOrbitSection({this.prediction, this.statistics});
+  const _CycleOrbitSection({this.prediction, this.statistics, this.phaseInsights});
 
-  int get _cycleDay => prediction?['currentDay'] ?? 14;
-  int get _totalDays => prediction?['cycleLength'] ?? 28;
-  int get _daysUntilNext => prediction?['daysUntilNext'] ?? 14;
-  String get _phase => prediction?['phase'] ?? 'Ovulation Phase';
+  int get _cycleDay => prediction?['currentCycleDay'] ?? 1;
+  int get _totalDays => prediction?['avgCycleLength'] ?? 28;
+  int get _daysUntilNext => prediction?['daysUntilNext'] ?? 28;
+  String get _phase {
+    final p = phaseInsights?['phase'] as String? ?? 'not_setup';
+    if (p == 'not_setup') return 'Not Setup';
+    return '${p[0].toUpperCase()}${p.substring(1)} Phase';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final isNotSetup = phaseInsights?['phase'] == 'not_setup';
+    
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -597,9 +730,12 @@ class _CycleOrbitSection extends StatelessWidget {
                 ),
               ),
               const Spacer(),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              if (!isNotSetup)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFF3F0FF),
                   borderRadius: BorderRadius.circular(20),
@@ -633,39 +769,37 @@ class _CycleOrbitSection extends StatelessWidget {
           const SizedBox(height: 24),
 
           // Stats row
-          Row(
-            children: [
-              _CycleStat(
-                label: 'Cycle Day',
-                value: '$_cycleDay',
-                unit: 'of $_totalDays',
-                color: const Color(0xFFE8647A),
-              ),
-              _VerticalDivider(),
-              _CycleStat(
-                label: 'Next Period',
-                value: '$_daysUntilNext',
-                unit: 'days away',
-                color: const Color(0xFF8B7EC8),
-              ),
-              _VerticalDivider(),
-              _CycleStat(
-                label: 'Avg Cycle',
-                value:
-                    '${statistics?['avgCycleLength'] ?? _totalDays}',
-                unit: 'days',
-                color: const Color(0xFF6BAF8A),
-              ),
-            ],
-          ),
+          if (!isNotSetup)
+            Row(
+              children: [
+                _CycleStat(
+                  label: 'Cycle Day',
+                  value: '$_cycleDay',
+                  unit: 'of $_totalDays',
+                  color: const Color(0xFFE8647A),
+                ),
+                _VerticalDivider(),
+                _CycleStat(
+                  label: 'Next Period',
+                  value: '$_daysUntilNext',
+                  unit: 'days away',
+                  color: const Color(0xFF8B7EC8),
+                ),
+                _VerticalDivider(),
+                _CycleStat(
+                  label: 'Avg Cycle',
+                  value: '${statistics?['avgCycleLength'] ?? _totalDays}',
+                  unit: 'days',
+                  color: const Color(0xFF6BAF8A),
+                ),
+              ],
+            ),
 
           const SizedBox(height: 20),
 
           // Progress bar with phase zones
-          _PhaseProgressBar(
-            cycleDay: _cycleDay,
-            totalDays: _totalDays,
-          ),
+          if (!isNotSetup)
+            _PhaseProgressBar(cycleDay: _cycleDay, totalDays: _totalDays),
         ],
       ),
     );
@@ -685,6 +819,7 @@ class _CycleOrbitRing extends StatelessWidget {
 
   Color _phaseColor(String p) {
     final lower = p.toLowerCase();
+    if (lower.contains('not setup')) return const Color(0xFF9E9EA8);
     if (lower.contains('ovulat')) return const Color(0xFFD4A843);
     if (lower.contains('menstrual') || lower.contains('period'))
       return const Color(0xFFE8647A);
@@ -695,9 +830,11 @@ class _CycleOrbitRing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _phaseColor(phase);
+    final isNotSetup = phase.toLowerCase().contains('not setup');
+    
     return CustomPaint(
       painter: _OrbitPainter(
-        cycleDay: cycleDay,
+        cycleDay: isNotSetup ? 0 : cycleDay,
         totalDays: totalDays,
         activeColor: color,
       ),
@@ -705,37 +842,38 @@ class _CycleOrbitRing extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              '$cycleDay',
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 48,
-                fontWeight: FontWeight.w800,
-                color: color,
-                height: 1,
+            if (phase.toLowerCase().contains('not setup'))
+              Icon(Icons.calendar_month_rounded, size: 48, color: color)
+            else ...[
+              Text(
+                '$cycleDay',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 48,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                  height: 1,
+                ),
               ),
-            ),
-            const Text(
-              'Days',
-              style: TextStyle(
-                fontFamily: 'Poppins',
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF9E9EA8),
+              const Text(
+                'Days',
+                style: TextStyle(
+                  fontFamily: 'Poppins',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF9E9EA8),
+                ),
               ),
-            ),
+            ],
             const SizedBox(height: 4),
             Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
                 color: color.withOpacity(0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
-                phase.length > 16
-                    ? '${phase.substring(0, 14)}...'
-                    : phase,
+                phase.length > 16 ? '${phase.substring(0, 14)}...' : phase,
                 style: TextStyle(
                   fontFamily: 'Poppins',
                   fontSize: 10,
@@ -865,11 +1003,7 @@ class _CycleStat extends StatelessWidget {
 class _VerticalDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 1,
-      height: 40,
-      color: const Color(0xFFEEECF5),
-    );
+    return Container(width: 1, height: 40, color: const Color(0xFFEEECF5));
   }
 }
 
@@ -877,8 +1011,7 @@ class _PhaseProgressBar extends StatelessWidget {
   final int cycleDay;
   final int totalDays;
 
-  const _PhaseProgressBar(
-      {required this.cycleDay, required this.totalDays});
+  const _PhaseProgressBar({required this.cycleDay, required this.totalDays});
 
   @override
   Widget build(BuildContext context) {
@@ -889,30 +1022,42 @@ class _PhaseProgressBar extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: const [
-            Text('Menstrual',
-                style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 9,
-                    color: Color(0xFFE8647A),
-                    fontWeight: FontWeight.w600)),
-            Text('Follicular',
-                style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 9,
-                    color: Color(0xFF6BAF8A),
-                    fontWeight: FontWeight.w600)),
-            Text('Ovulation',
-                style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 9,
-                    color: Color(0xFFD4A843),
-                    fontWeight: FontWeight.w600)),
-            Text('Luteal',
-                style: TextStyle(
-                    fontFamily: 'Poppins',
-                    fontSize: 9,
-                    color: Color(0xFF8B7EC8),
-                    fontWeight: FontWeight.w600)),
+            Text(
+              'Menstrual',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 9,
+                color: Color(0xFFE8647A),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              'Follicular',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 9,
+                color: Color(0xFF6BAF8A),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              'Ovulation',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 9,
+                color: Color(0xFFD4A843),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              'Luteal',
+              style: TextStyle(
+                fontFamily: 'Poppins',
+                fontSize: 9,
+                color: Color(0xFF8B7EC8),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 6),
@@ -980,6 +1125,7 @@ class _DailyCheckInStrip extends StatelessWidget {
     required this.onMoodSelected,
   });
 
+  // Exposed for access in the parent widget
   static const _moods = [
     {'emoji': '😴', 'label': 'Tired'},
     {'emoji': '💪', 'label': 'Energetic'},
@@ -1042,11 +1188,11 @@ class _DailyCheckInStrip extends StatelessWidget {
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeOut,
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10),
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
-                    color: isSelected
-                        ? const Color(0xFF2D2D3A)
-                        : Colors.white,
+                    color: isSelected ? const Color(0xFF2D2D3A) : Colors.white,
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color: isSelected
@@ -1057,8 +1203,7 @@ class _DailyCheckInStrip extends StatelessWidget {
                     boxShadow: isSelected
                         ? [
                             BoxShadow(
-                              color: const Color(0xFF2D2D3A)
-                                  .withOpacity(0.15),
+                              color: const Color(0xFF2D2D3A).withOpacity(0.15),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -1070,9 +1215,7 @@ class _DailyCheckInStrip extends StatelessWidget {
                     children: [
                       Text(
                         mood['emoji']!,
-                        style: TextStyle(
-                          fontSize: isSelected ? 22 : 20,
-                        ),
+                        style: TextStyle(fontSize: isSelected ? 22 : 20),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -1105,11 +1248,13 @@ class _WellnessSnapshotRow extends StatelessWidget {
   final int waterGlasses;
   final int waterGoal;
   final VoidCallback onAddWater;
+  final Map<String, dynamic>? phaseInsights;
 
   const _WellnessSnapshotRow({
     required this.waterGlasses,
     required this.waterGoal,
     required this.onAddWater,
+    this.phaseInsights,
   });
 
   @override
@@ -1134,22 +1279,117 @@ class _WellnessSnapshotRow extends StatelessWidget {
               // Water tracker — left card
               Expanded(
                 flex: 5,
-                child: _WaterRingCard(
-                  glasses: waterGlasses,
-                  goal: waterGoal,
-                  onAdd: onAddWater,
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const WaterTrackingScreen(),
+                      ),
+                    );
+                  },
+                  child: _WaterRingCard(
+                    glasses: waterGlasses,
+                    goal: waterGoal,
+                    onAdd: onAddWater,
+                  ),
                 ),
               ),
               const SizedBox(width: 14),
               // Phase insight — right card (taller)
               Expanded(
                 flex: 6,
-                child: const _PhaseInsightCard(),
+                child: _PhaseInsightCard(insights: phaseInsights),
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+class _AlertBanner extends StatelessWidget {
+  final Map<String, dynamic> alert;
+  const _AlertBanner({required this.alert});
+
+  @override
+  Widget build(BuildContext context) {
+    final severity = alert['severity'] as String? ?? 'info';
+    final title =
+        alert['titleBn'] as String? ?? alert['title'] as String? ?? '';
+    final message =
+        alert['messageBn'] as String? ?? alert['message'] as String? ?? '';
+
+    Color bgColor;
+    Color borderColor;
+    IconData icon;
+
+    switch (severity) {
+      case 'danger':
+        bgColor = const Color(0xFFFFE8EC);
+        borderColor = const Color(0xFFE8647A);
+        icon = Icons.warning_rounded;
+      case 'warning':
+        bgColor = const Color(0xFFFFF8E6);
+        borderColor = const Color(0xFFD4A843);
+        icon = Icons.access_time_rounded;
+      case 'highlight':
+        bgColor = const Color(0xFFF3F0FF);
+        borderColor = const Color(0xFF8B7EC8);
+        icon = Icons.star_rounded;
+      default:
+        bgColor = const Color(0xFFE8F5EE);
+        borderColor = const Color(0xFF6BAF8A);
+        icon = Icons.info_rounded;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: borderColor.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: borderColor.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: borderColor, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: borderColor,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  message,
+                  style: const TextStyle(
+                    fontFamily: 'Poppins',
+                    fontSize: 11,
+                    color: Color(0xFF6B6B7B),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1247,13 +1487,14 @@ class _WaterRingCard extends StatelessWidget {
           GestureDetector(
             onTap: onAdd,
             child: Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                    color: Colors.white.withOpacity(0.4), width: 1),
+                  color: Colors.white.withOpacity(0.4),
+                  width: 1,
+                ),
               ),
               child: const FittedBox(
                 fit: BoxFit.scaleDown,
@@ -1332,7 +1573,9 @@ class _ArcPainter extends CustomPainter {
 }
 
 class _PhaseInsightCard extends StatelessWidget {
-  const _PhaseInsightCard();
+  final Map<String, dynamic>? insights;
+
+  const _PhaseInsightCard({this.insights});
 
   @override
   Widget build(BuildContext context) {
@@ -1358,8 +1601,7 @@ class _PhaseInsightCard extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.15),
               borderRadius: BorderRadius.circular(20),
@@ -1375,9 +1617,9 @@ class _PhaseInsightCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
-          const Text(
-            'Progesterone\nis rising.',
-            style: TextStyle(
+          Text(
+            insights?['title'] ?? 'Balance is\nkey today.',
+            style: const TextStyle(
               fontFamily: 'Poppins',
               fontSize: 18,
               fontWeight: FontWeight.w700,
@@ -1387,7 +1629,7 @@ class _PhaseInsightCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Prioritise rest and reduce screen time before bed tonight.',
+            insights?['tip'] ?? 'Stay mindful of your body\'s natural rhythm and take time to relax.',
             style: TextStyle(
               fontFamily: 'Poppins',
               fontSize: 12,
@@ -1414,8 +1656,11 @@ class _PhaseInsightCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 4),
-                Icon(Icons.arrow_forward_rounded,
-                    color: Colors.white.withOpacity(0.9), size: 14),
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  color: Colors.white.withOpacity(0.9),
+                  size: 14,
+                ),
               ],
             ),
           ),
@@ -1429,22 +1674,35 @@ class _PhaseInsightCard extends StatelessWidget {
 //  SECTION 6 — MEDICINE TIMELINE
 // ══════════════════════════════════════════════════════════
 class _MedicineTimeline extends StatelessWidget {
-  final List<bool?> taken;
-  final ValueChanged<int> onToggle;
+  final List<dynamic> medicines;
 
-  const _MedicineTimeline({
-    required this.taken,
-    required this.onToggle,
-  });
-
-  static const _medicines = [
-    {'time': '8:00 AM', 'name': 'Folic Acid', 'dose': '400mcg', 'period': 'Morning'},
-    {'time': '2:00 PM', 'name': 'Iron Tablet', 'dose': '65mg', 'period': 'Afternoon'},
-    {'time': '10:00 PM', 'name': 'Vitamin D3', 'dose': '1000IU', 'period': 'Night'},
-  ];
+  const _MedicineTimeline({required this.medicines});
 
   @override
   Widget build(BuildContext context) {
+    if (medicines.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(22),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(28),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF6BAF8A).withOpacity(0.08),
+              blurRadius: 20,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: const Center(
+          child: Text(
+            'No medicines scheduled for today.',
+            style: TextStyle(fontFamily: 'Poppins', color: Color(0xFF9E9EA8)),
+          ),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(22),
       decoration: BoxDecoration(
@@ -1456,10 +1714,7 @@ class _MedicineTimeline extends StatelessWidget {
             blurRadius: 20,
             offset: const Offset(0, 6),
           ),
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-          ),
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8),
         ],
       ),
       child: Column(
@@ -1524,31 +1779,32 @@ class _MedicineTimeline extends StatelessWidget {
 
           // Timeline row
           Row(
-            children: List.generate(_medicines.length, (i) {
-              final med = _medicines[i];
-              final status = taken[i];
-              final isLast = i == _medicines.length - 1;
+            children: List.generate(math.min(medicines.length, 3), (i) {
+              final med = medicines[i];
+              final status = med['taken'] == true ? true : null;
+              final isLast = i == math.min(medicines.length, 3) - 1;
 
               return Expanded(
                 child: Row(
                   children: [
                     Expanded(
                       child: _MedicineTimelineItem(
-                        time: med['time']!,
-                        name: med['name']!,
-                        dose: med['dose']!,
-                        period: med['period']!,
+                        time: med['reminderTimes'] != null && (med['reminderTimes'] as List).isNotEmpty ? (med['reminderTimes'] as List).first : '09:00 AM',
+                        name: med['name'] ?? '',
+                        dose: '${med['dosage'] ?? ''} ${med['unit'] ?? ''}',
+                        period: 'Dose',
                         status: status,
-                        onTap: () => onToggle(i),
+                        onTap: () {
+                          // Tap action handled in main medicine screen
+                        },
                       ),
                     ),
                     if (!isLast)
                       Container(
-                        width: 28,
+                        width: 15,
                         height: 1.5,
                         color: const Color(0xFFEEECF5),
-                        margin:
-                            const EdgeInsets.only(bottom: 24),
+                        margin: const EdgeInsets.only(bottom: 24),
                       ),
                   ],
                 ),
@@ -1586,14 +1842,14 @@ class _MedicineTimelineItem extends StatelessWidget {
     final dotColor = isTaken
         ? const Color(0xFF6BAF8A)
         : isPending
-            ? const Color(0xFFD4D4DC)
-            : const Color(0xFFE8647A);
+        ? const Color(0xFFD4D4DC)
+        : const Color(0xFFE8647A);
 
     final cardColor = isTaken
         ? const Color(0xFFE8F5EE)
         : isPending
-            ? const Color(0xFFF8F8FC)
-            : const Color(0xFFFFF0F2);
+        ? const Color(0xFFF8F8FC)
+        : const Color(0xFFFFF0F2);
 
     return GestureDetector(
       onTap: onTap,
@@ -1618,8 +1874,8 @@ class _MedicineTimelineItem extends StatelessWidget {
               isTaken
                   ? Icons.check_rounded
                   : isPending
-                      ? Icons.schedule_rounded
-                      : Icons.add_rounded,
+                  ? Icons.schedule_rounded
+                  : Icons.add_rounded,
               color: Colors.white,
               size: 14,
             ),
@@ -1676,8 +1932,8 @@ class _MedicineTimelineItem extends StatelessWidget {
                   isTaken
                       ? '✓ Taken'
                       : isPending
-                          ? 'Pending'
-                          : 'Take Now',
+                      ? 'Pending'
+                      : 'Take Now',
                   style: TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 9,
@@ -1698,7 +1954,8 @@ class _MedicineTimelineItem extends StatelessWidget {
 //  SECTION 7 — WELLNESS STORY CARD
 // ══════════════════════════════════════════════════════════
 class _WellnessStoryCard extends StatelessWidget {
-  const _WellnessStoryCard();
+  final Map<String, dynamic>? phaseInsights;
+  const _WellnessStoryCard({this.phaseInsights});
 
   @override
   Widget build(BuildContext context) {
@@ -1766,7 +2023,9 @@ class _WellnessStoryCard extends StatelessWidget {
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 4),
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF52B788).withOpacity(0.3),
                     borderRadius: BorderRadius.circular(20),
@@ -1788,9 +2047,9 @@ class _WellnessStoryCard extends StatelessWidget {
 
                 const SizedBox(height: 14),
 
-                const Text(
-                  '"Your peak\nenergy window\nis now."',
-                  style: TextStyle(
+                Text(
+                  '"${phaseInsights?['tip'] ?? 'Your peak\nenergy window\nis now.'}"',
+                  style: const TextStyle(
                     fontFamily: 'Poppins',
                     fontSize: 20,
                     fontWeight: FontWeight.w700,
@@ -1801,43 +2060,47 @@ class _WellnessStoryCard extends StatelessWidget {
 
                 const SizedBox(height: 14),
 
-                _WellnessBullet('Exercise benefits peak this week'),
+                _WellnessBullet(phaseInsights?['mood'] ?? 'Exercise benefits peak this week'),
                 const SizedBox(height: 6),
-                _WellnessBullet('Social energy is at its highest'),
+                _WellnessBullet(phaseInsights?['food'] ?? 'Social energy is at its highest'),
                 const SizedBox(height: 6),
-                _WellnessBullet('Creative work flows with ease'),
+                _WellnessBullet(phaseInsights?['exercise'] ?? 'Creative work flows with ease'),
 
                 const SizedBox(height: 18),
 
                 GestureDetector(
                   onTap: () {},
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'Explore Phase Guide',
-                        style: TextStyle(
-                          fontFamily: 'Poppins',
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF95D5B2),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Explore Phase Guide',
+                          style: TextStyle(
+                            fontFamily: 'Poppins',
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF95D5B2),
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 6),
-                      Container(
-                        width: 22,
-                        height: 22,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF52B788).withOpacity(0.3),
-                          shape: BoxShape.circle,
+                        const SizedBox(width: 6),
+                        Container(
+                          width: 22,
+                          height: 22,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF52B788).withOpacity(0.3),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.arrow_forward_rounded,
+                            color: Color(0xFF95D5B2),
+                            size: 12,
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.arrow_forward_rounded,
-                          color: Color(0xFF95D5B2),
-                          size: 12,
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ],

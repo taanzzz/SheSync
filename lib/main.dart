@@ -13,6 +13,11 @@ import 'providers/notification_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/connectivity_provider.dart';
 import 'providers/fertility_provider.dart';
+import 'providers/water_provider.dart';
+import 'providers/mood_provider.dart';
+import 'providers/weight_provider.dart';
+import 'providers/analytics_provider.dart';
+import 'providers/insights_provider.dart';
 import 'router/app_router.dart';
 
 void main() {
@@ -39,6 +44,11 @@ class SheSyncApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => ThemeProvider()..loadTheme()),
         ChangeNotifierProvider(create: (_) => ConnectivityProvider()),
         ChangeNotifierProvider(create: (_) => FertilityProvider()),
+        ChangeNotifierProvider(create: (_) => WaterProvider()),
+        ChangeNotifierProvider(create: (_) => MoodProvider()),
+        ChangeNotifierProvider(create: (_) => WeightProvider()),
+        ChangeNotifierProvider(create: (_) => AnalyticsProvider()),
+        ChangeNotifierProvider(create: (_) => InsightsProvider()),
       ],
       child: Consumer<ThemeProvider>(
         builder: (context, themeProvider, _) {

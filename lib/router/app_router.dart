@@ -6,13 +6,18 @@ import '../features/onboarding/screens/onboarding_screen.dart';
 import '../features/home/screens/home_screen.dart';
 import '../features/settings/screens/settings_screen.dart';
 import '../features/calendar/screens/calendar_screen.dart';
+import '../features/calendar/screens/premium_calendar_screen.dart';
 import '../features/period_log/screens/period_log_screen.dart';
 import '../features/auth/screens/forgot_password_screen.dart';
 import '../features/symptoms/screens/symptom_log_screen.dart';
 import '../features/medicine/screens/medicine_screen.dart';
+import '../features/medicine/screens/add_medicine_screen.dart';
 import '../features/journal/screens/journal_screen.dart';
 import '../features/fertility/screens/fertility_screen.dart';
 import '../features/reports/screens/reports_screen.dart';
+import '../features/water/screens/water_tracking_screen.dart';
+import '../features/bmi/screens/bmi_calculator_screen.dart';
+import '../features/analytics/screens/analytics_dashboard_screen.dart';
 
 class AppRouter {
   static const String splash = '/';
@@ -23,12 +28,17 @@ class AppRouter {
   static const String home = '/home';
   static const String settings = '/settings';
   static const String calendar = '/calendar';
+  static const String premiumCalendar = '/premium-calendar';
   static const String periodLog = '/period-log';
   static const String symptomLog = '/symptom-log';
   static const String medicine = '/medicine';
+  static const String addMedicine = '/add-medicine';
   static const String journal = '/journal';
   static const String fertility = '/fertility';
   static const String reports = '/reports';
+  static const String waterTracking = '/water-tracking';
+  static const String bmiCalculator = '/bmi-calculator';
+  static const String analytics = '/analytics';
 
   static Route<dynamic> generateRoute(RouteSettings routeSettings) {
     switch (routeSettings.name) {
@@ -48,18 +58,28 @@ class AppRouter {
         return _pageRoute(const SettingsScreen(), routeSettings);
       case calendar:
         return _pageRoute(const CalendarScreen(), routeSettings);
+      case premiumCalendar:
+        return _pageRoute(const PremiumCalendarScreen(), routeSettings);
       case periodLog:
         return _pageRoute(const PeriodLogScreen(), routeSettings);
       case symptomLog:
         return _pageRoute(const SymptomLogScreen(), routeSettings);
       case medicine:
         return _pageRoute(const MedicineScreen(), routeSettings);
+      case addMedicine:
+        return _pageRoute(const AddMedicineScreen(), routeSettings);
       case journal:
         return _pageRoute(const JournalScreen(), routeSettings);
       case fertility:
         return _pageRoute(const FertilityScreen(), routeSettings);
       case reports:
         return _pageRoute(const ReportsScreen(), routeSettings);
+      case waterTracking:
+        return _pageRoute(const WaterTrackingScreen(), routeSettings);
+      case bmiCalculator:
+        return _pageRoute(const BMICalculatorScreen(), routeSettings);
+      case analytics:
+        return _pageRoute(const AnalyticsDashboardScreen(), routeSettings);
       default:
         return _pageRoute(const SplashScreen(), routeSettings);
     }
@@ -69,3 +89,4 @@ class AppRouter {
     return MaterialPageRoute(builder: (_) => page, settings: settings);
   }
 }
+

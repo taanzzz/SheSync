@@ -23,4 +23,19 @@ class CycleRepository {
 
   Future<Map<String, dynamic>> deleteCycle(String id) =>
       _dataSource.deleteCycle(id);
+
+  Future<Map<String, dynamic>> getDashboard() => _dataSource.getDashboard();
+
+  Future<Map<String, dynamic>> getCycleAlerts() => _dataSource.getCycleAlerts();
+
+  Future<Map<String, dynamic>> getFertilityPrediction() =>
+      _dataSource.getFertilityPrediction();
+
+  Future<Map<String, dynamic>> getPremiumCalendar(int month, int year) =>
+      _dataSource.getPremiumCalendar(month, year);
+
+  Future<Map<String, dynamic>> getConfig() => _dataSource.getConfig();
+
+  Future<Map<String, dynamic>> saveConfig(Map<String, dynamic> data) =>
+      _dataSource.saveConfig(data);
 }

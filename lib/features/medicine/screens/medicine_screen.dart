@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../providers/medicine_provider.dart';
 import '../../../shared/widgets/empty_state.dart';
+import '../../../router/app_router.dart';
 
 class MedicineScreen extends StatefulWidget {
   const MedicineScreen({super.key});
@@ -16,6 +17,7 @@ class _MedicineScreenState extends State<MedicineScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<MedicineProvider>().loadMedicines();
       context.read<MedicineProvider>().loadTodaysMedicines();
       context.read<MedicineProvider>().loadAdherence();
     });
@@ -31,7 +33,13 @@ class _MedicineScreenState extends State<MedicineScreen> {
         title: const Text('My Medicines 💊'),
         actions: [
           TextButton.icon(
-            onPressed: () {},
+            onPressed: () async {
+              final result = await Navigator.pushNamed(context, AppRouter.addMedicine);
+              if (result == true && mounted) {
+                context.read<MedicineProvider>().loadMedicines();
+                context.read<MedicineProvider>().loadTodaysMedicines();
+              }
+            },
             icon: const Icon(Icons.add_rounded, color: AppColors.crimsonHeart),
             label: const Text(
               'Add',
@@ -240,7 +248,13 @@ class _MedicineScreenState extends State<MedicineScreen> {
           ],
         ),
         child: FloatingActionButton(
-          onPressed: () {},
+          onPressed: () async {
+            final result = await Navigator.pushNamed(context, AppRouter.addMedicine);
+            if (result == true && mounted) {
+              context.read<MedicineProvider>().loadMedicines();
+              context.read<MedicineProvider>().loadTodaysMedicines();
+            }
+          },
           backgroundColor: Colors.transparent,
           elevation: 0,
           child: const Icon(Icons.add, color: Colors.white, size: 28),
